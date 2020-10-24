@@ -1,3 +1,12 @@
+import {
+  Bowman,
+  Swordsman,
+  Magician,
+  Vampire,
+  Undead,
+  Daemon,
+} from './Character';
+
 /**
  * Generates random characters
  *
@@ -6,9 +15,15 @@
  * @returns Character type children (ex. Magician, Bowman, etc)
  */
 export function* characterGenerator(allowedTypes, maxLevel) {
-  // TODO: write logic here
+  for (let i = 0; i < allowedTypes.length; i++) {
+    yield allowedTypes[i];
+  } 
 }
 
 export function generateTeam(allowedTypes, maxLevel, characterCount) {
-  // TODO: write logic here
+  const result = [];
+  for (let i = 0; i < characterCount; i++) {
+    result.push(characterGenerator(allowedTypes, maxLevel));
+  }
+  return result;
 }
