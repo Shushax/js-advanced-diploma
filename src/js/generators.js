@@ -15,14 +15,16 @@ import {
  * @returns Character type children (ex. Magician, Bowman, etc)
  */
 export function* characterGenerator(allowedTypes, maxLevel) {
-  for (let i = 0; i < allowedTypes.length; i++) {
-    yield allowedTypes[i];
-  } 
+  const typeIndex = Math.floor(Math.random() * allowedTypes.length);
+  const Type = allowedTypes[typeIndex];
+  const level = Math.floor(Math.random() * maxLevel);
+
+  return new Type(level);
 }
 
 export function generateTeam(allowedTypes, maxLevel, characterCount) {
   const result = [];
-  for (let i = 0; i < characterCount; i++) {
+  for (let i = 0; i < characterCount; i += 1) {
     result.push(characterGenerator(allowedTypes, maxLevel));
   }
   return result;
