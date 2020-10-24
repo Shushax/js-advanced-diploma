@@ -8,7 +8,7 @@ export default class GameController {
   }
 
   init() {
-    gamePlay.drawUI(themes.praire);
+    this.gamePlay.drawUi('prairie');
     // TODO: add event listeners to gamePlay events
     // TODO: load saved stated from stateService
   }
