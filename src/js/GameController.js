@@ -1,4 +1,5 @@
 import themes from './themes';
+import { gamePlay } from './app';
 
 export default class GameController {
   constructor(gamePlay, stateService) {
