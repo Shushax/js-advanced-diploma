@@ -13,12 +13,12 @@ import {
 import PositionedCharacter from './PositionedCharacter';
 import { characterGenerator, generateTeam } from './generators';
 import GameState from './GameState';
+import { getDistance } from './utils';
 
 export default class GameController {
   constructor(gamePlay, stateService) {
     this.gamePlay = gamePlay;
     this.stateService = stateService;
-    this.board = [];
     this.gameState = new GameState();
   }
 
@@ -65,11 +65,49 @@ export default class GameController {
 
 
   onCellEnter(index) {
+    
+    const isPersOnCell = this.gameState.board.find((item) => item.position === index);
 
+    if (isPersOnCell) {
+      const pers = isPersOnCell.character;
+
+      const message = `🎖${pers.level} ⚔${pers.attack} 🛡${pers.defence} ❤${pers.health}`;
+      this.gamePlay.showCellTooltip(message, index);
+
+      if (pers instanceof Bowman || pers instanceof Swordsman || pers instanceof Magician) {
+        this.gamePlay.setCursor('pointer');
+      } else {
+        this.gamePlay.setCursor('not-allowed');
+
+        if (this.gameState.selected) {
+          const { attackRange } = this.gameState.selected.character;
+          const { position } = this.gameState.selected;
+          if (getDistance(this.gamePlay.boardSize, position, index).distance <= attackRange) {
+            this.gamePlay.setCursor('crosshair');
+            this.gamePlay.selectCell(index, 'red');
+          }
+        }
+      }
+    } else if (this.gameState.selected) {
+      const { moveRange } = this.gameState.selected.character;
+      const { position } = this.gameState.selected;
+      if (getDistance(this.gamePlay.boardSize, position, index).distance <= moveRange) {
+        this.gamePlay.setCursor('pointer');
+        this.gamePlay.selectCell(index, 'green');
+      } else {
+        this.gamePlay.setCursor('not-allowed');
+      }
+    }  
   }
 
   onCellLeave(index) {
-    
+
+    this.gamePlay.setCursor('auto');
+    this.gamePlay.deselectCell(index);
+    if (this.gameState.selected) {
+      this.gamePlay.selectCell(this.gameState.selected.position);
+    }
+
   }
 
   onNewGameClick() {
