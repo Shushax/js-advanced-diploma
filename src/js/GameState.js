@@ -4,6 +4,7 @@ export default class GameState {
     this.board = [];
     this.activePlayer = '';
     this.selected = null;
+    this.avlAction = null;
   }
 
   changeActivePlayer() {

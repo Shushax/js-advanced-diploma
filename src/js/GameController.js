@@ -20,6 +20,8 @@ export default class GameController {
     this.gamePlay = gamePlay;
     this.stateService = stateService;
     this.gameState = new GameState();
+    this.heroesOfUser = [Bowman, Swordsman, Magician];
+    this.heroesOfComputer = [Vampire, Undead, Daemon];
   }
 
   init() {
@@ -38,29 +40,23 @@ export default class GameController {
   onCellClick(index) {
     
     
-    const findedPers = this.gameState.board.find((item) => item.position === index);
-    if (!findedPers || this.gameState.activePlayer === 'computer') {
+    if (this.gameState.activePlayer === 'computer') {
       return false;
     }
 
-    if (findedPers.character instanceof Daemon || findedPers.character instanceof Undead || findedPers.character instanceof Vampire) {
-      GamePlay.showError('Ошибка! Нельзя выбрать персонажей компьютера!');
-      return false;
+    if (this.gameState.avlAction === 'select') {
+      this.actionSelect(index);
+    } else if (this.gameState.avlAction === 'move') {
+      this.actionMove(index);
+    } else if (this.gameState.avlAction === 'attack') {
+      this.actionAttack(index);
+    } else if (this.gameState.avlAction === 'not allowed to choose') {
+      GamePlay.showError('Вражеских персонажей нельзя выбирать!');
+    } else if (this.gameState.avlAction === 'to far to attack') {
+      GamePlay.showError('Слишком далеко для атаки');
+    } else if (this.gameState.avlAction === 'to far to move') {
+      GamePlay.showError('Слишком далеко для перемещения');
     }
-
-    const selectedPosition = this.gameState.selected ? this.gameState.selected.position : null;
-    if (selectedPosition === index) {
-      this.gamePlay.deselectCell(index);
-      this.gameState.selected = null;
-    } else if (selectedPosition === null) {
-      this.gamePlay.selectCell(index);
-      this.gameState.selected = findedPers;
-    } else {
-      this.gamePlay.deselectCell(selectedPosition);
-      this.gamePlay.selectCell(index);
-      this.gameState.selected = findedPers;
-    }
-
   }
 
 
@@ -69,40 +65,66 @@ export default class GameController {
     const isPersOnCell = this.gameState.board.find((item) => item.position === index);
 
     if (isPersOnCell) {
-      const pers = isPersOnCell.character;
+      this.createAndShowTooltip(index, isPersOnCell);
+      const whoIsOnField = Object.getPrototypeOf(isPersOnCell.character).constructor;
+      const isGamer = this.heroesOfUser.includes(whoIsOnField);
 
-      const message = `🎖${pers.level} ⚔${pers.attack} 🛡${pers.defence} ❤${pers.health}`;
-      this.gamePlay.showCellTooltip(message, index);
-
-      if (pers instanceof Bowman || pers instanceof Swordsman || pers instanceof Magician) {
-        this.gamePlay.setCursor('pointer');
+      if (isGamer) {
+        this.setAvaliableAction('select');
       } else {
-        this.gamePlay.setCursor('not-allowed');
+        this.setAvaliableAction('not allowed to choose');
 
         if (this.gameState.selected) {
-          const { attackRange } = this.gameState.selected.character;
-          const { position } = this.gameState.selected;
-          if (getDistance(this.gamePlay.boardSize, position, index).distance <= attackRange) {
-            this.gamePlay.setCursor('crosshair');
-            this.gamePlay.selectCell(index, 'red');
+          this.setAvaliableAction('to far to attack');
+
+          if (this.isActionInRange('attackRange', index)) {
+            this.setAvaliableAction('attack', index);
           }
         }
       }
-    } else if (this.gameState.selected) {
-      const { moveRange } = this.gameState.selected.character;
-      const { position } = this.gameState.selected;
-      if (getDistance(this.gamePlay.boardSize, position, index).distance <= moveRange) {
+      return;
+    }
+ 
+    if (this.gameState.selected) {
+      if (this.isActionInRange('moveRange', index)) {
+        this.setAvaliableAction('move', index);
+      } else {
+        this.setAvaliableAction('to far to move');
+      }
+    }
+  }
+
+  isActionInRange(range, index) {
+    const actionRange = this.gameState.selected.character[range];
+    const { position } = this.gameState.selected;
+    return getDistance(this.gamePlay.boardSize, position, index).distance <= actionRange;
+  }
+
+  setAvaliableAction(status, index = null) {
+    this.gameState.avlAction = status;
+
+    switch (status) {
+      case 'select':
+        this.gamePlay.setCursor('pointer');
+        break;
+      case 'move':
         this.gamePlay.setCursor('pointer');
         this.gamePlay.selectCell(index, 'green');
-      } else {
+        break;
+      case 'attack':
+        this.gamePlay.selectCell(index, 'red');
+        this.gamePlay.setCursor('crosshair');
+        break;
+      default:
         this.gamePlay.setCursor('not-allowed');
-      }
-    }  
+        break;
+    }
   }
 
   onCellLeave(index) {
 
     this.gamePlay.setCursor('auto');
+    this.gameState.avlAction = null;
     this.gamePlay.deselectCell(index);
     if (this.gameState.selected) {
       this.gamePlay.selectCell(this.gameState.selected.position);
@@ -118,6 +140,7 @@ export default class GameController {
       this.gamePlay.deselectCell(this.gameState.selected.position);
     }
     this.gameState.selected = null;
+    this.gameState.avlAction = null;
 
 
     const userTeam = generateTeam([Bowman, Swordsman], 1, 2);
@@ -132,8 +155,67 @@ export default class GameController {
     this.gameState.board.push(computerTeamPosition[0], computerTeamPosition[1]);
 
     
-    this.gamePlay.redrawPositions([...userTeamPosition, ...computerTeamPosition]);
+    this.gamePlay.redrawPositions(this.gameState.board);
 
+  }
+
+  actionMove(index) {
+    this.deselectBoth(index);
+    this.gameState.selected.position = index;
+    this.gamePlay.redrawPositions(this.gameState.board);
+    this.cleanAfterTurn();
+  }
+
+  actionAttack(index) {
+    const findedPers = this.gameState.board.find((item) => item.position === index);
+    const target = findedPers.character;
+    const attackerAttack = this.gameState.selected.character.attack;
+    const damage = Math.max(attackerAttack - target.defence, attackerAttack * 0.1);
+
+    this.gamePlay.showDamage(index, damage).finally(() => {
+      target.health -= damage;
+      if (target.health <= 0) {
+        const indexForDelete = this.gameState.board.indexOf(findedPers);
+        this.gameState.board.splice(indexForDelete, 1);
+      }
+
+      this.gamePlay.redrawPositions(this.gameState.board);
+      this.deselectBoth(index);
+      this.cleanAfterTurn();
+    });
+  }
+
+  actionSelect(index) {
+    const characterOnCell = this.gameState.board.find((item) => item.position === index);
+    const selectedPosition = this.gameState.selected ? this.gameState.selected.position : null;
+
+    if (selectedPosition === index) {
+      this.gamePlay.deselectCell(index);
+      this.gameState.selected = null;
+    } else if (selectedPosition === null) {
+      this.gamePlay.selectCell(index);
+      this.gameState.selected = characterOnCell;
+    } else {
+      this.gamePlay.deselectCell(selectedPosition);
+      this.gamePlay.selectCell(index);
+      this.gameState.selected = characterOnCell;
+    }
+  }
+
+  deselectBoth(index) {
+    this.gamePlay.deselectCell(this.gameState.selected.position);
+    this.gamePlay.deselectCell(index);
+  }
+
+  cleanAfterTurn() {
+    this.gameState.selected = null;
+    this.gameState.avlAction = null;
+  }
+
+  createAndShowTooltip(index, personOnCell) {
+    const pers = personOnCell.character;
+    const message = `🎖${pers.level} ⚔${pers.attack} 🛡${pers.defence} ❤${pers.health}`;
+    this.gamePlay.showCellTooltip(message, index);
   }
 
 
