@@ -31,12 +31,19 @@ export function calcHealthLevel(health) {
   return 'high';
 }
 
-export function getDistance(fieldSize, cell1, cell2) {
-  const row1 = Math.floor(cell1 / fieldSize) + 1;
-  const col1 = Math.floor(cell1 % fieldSize) + 1;
+export function getCoordinatesByPosition(index, fieldSize) {
+  const row = Math.floor(index / fieldSize) + 1;
+  const col = Math.floor(index % fieldSize) + 1;
+  return [row, col];
+}
 
-  const row2 = Math.floor(cell2 / fieldSize) + 1;
-  const col2 = Math.floor(cell2 % fieldSize) + 1;
+export function getPositionByCoordinates(row, col, fieldSize) {
+  return fieldSize * (row - 1) + (col - 1);
+}
+
+export function getDistance(fieldSize, cell1, cell2) {
+  const [row1, col1] = getCoordinatesByPosition(cell1, fieldSize);
+  const [row2, col2] = getCoordinatesByPosition(cell2, fieldSize);
 
   let inLine = false;
   if (row1 === row2 || col1 === col2 || Math.abs(row1 - row2) === Math.abs(col1 - col2)) {
@@ -46,4 +53,14 @@ export function getDistance(fieldSize, cell1, cell2) {
   const distance = Math.max(Math.abs(row1 - row2), Math.abs(col1 - col2));
 
   return { inLine, distance };
+}
+
+export function isGamer(personOnCell, gamerClasses) {
+  const whoIsOnField = Object.getPrototypeOf(personOnCell.character).constructor;
+  return gamerClasses.includes(whoIsOnField);
+}
+
+export function countDamage(attacker, target) {
+  const attackerAttack = attacker.character.attack;
+  return Math.max(attackerAttack - target.character.defence, attackerAttack * 0.1);
 }
