@@ -31,6 +31,36 @@ export function calcHealthLevel(health) {
   return 'high';
 }
 
+export function randomizeArray(arr) {
+  const randomArr = arr.slice();
+  for (let i = randomArr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [randomArr[i], randomArr[j]] = [randomArr[j], randomArr[i]];
+  }
+
+  return randomArr;
+}
+
+export function getStartPosition(fieldSize, who) {
+  const positions = [];
+
+  if (fieldSize < 4) {
+    throw new Error('Fieldsize should be grater or equal 4');
+  }
+
+  for (let i = 0; i < fieldSize ** 2; i += 1) {
+    if ((i % fieldSize === 0 || i % fieldSize === 1) && who === 'gamer') {
+      positions.push(i);
+    }
+
+    if ((i % fieldSize === fieldSize - 1 || i % fieldSize === fieldSize - 2) && who === 'computer') {
+      positions.push(i);
+    }
+  }
+
+  return positions;
+}
+
 export function getCoordinatesByPosition(index, fieldSize) {
   const row = Math.floor(index / fieldSize) + 1;
   const col = Math.floor(index % fieldSize) + 1;

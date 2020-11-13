@@ -14,25 +14,19 @@ import {
  * @param maxLevel max character level
  * @returns Character type children (ex. Magician, Bowman, etc)
  */
-export function* characterGenerator(allowedTypes, maxLevel) {
+export function characterGenerator(allowedTypes, maxLevel) {
 
-  for (let i = 0; i < allowedTypes.length; i++) {
-    const level = Math.floor(Math.random() * maxLevel);
-    
-    yield new allowedTypes[i](level);
+  const typeIndex = Math.floor(Math.random() * allowedTypes.length);
+  const Type = allowedTypes[typeIndex];
+  const level = Math.floor(Math.random() * maxLevel) + 1;
 
-  }
+  return new Type(level);
 }
 
 export function generateTeam(allowedTypes, maxLevel, characterCount) {
   const result = [];
-  const generator = characterGenerator(allowedTypes, maxLevel);
-
-
-  for (let i = 0; i < characterCount; i++ ) {
-    const character = generator.next();
-    result.push(character.value);
+  for (let i = 0; i < characterCount; i += 1) {
+    result.push(characterGenerator(allowedTypes, maxLevel));
   }
-  
   return result;
 }

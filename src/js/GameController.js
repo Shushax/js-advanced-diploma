@@ -14,11 +14,14 @@ import PositionedCharacter from './PositionedCharacter';
 import { characterGenerator, generateTeam } from './generators';
 import GameState from './GameState';
 import {
+  randomizeArray,
+  getStartPosition,
   getDistance,
   isGamer,
   countDamage,
 } from './utils';
 import Ai from './ai';
+import GameStateService from './GameStateService';
 
 
 export default class GameController {
@@ -26,29 +29,70 @@ export default class GameController {
     this.gamePlay = gamePlay;
     this.stateService = stateService;
     this.gameState = new GameState();
-    this.heroesOfUser = [Bowman, Swordsman, Magician];
-    this.heroesOfComputer = [Vampire, Undead, Daemon];
-    this.ai = new Ai(this.heroesOfUser, this.gameState, this.gamePlay.boardSize, this.gamePlay);
+    this.gameStateService = new GameStateService(window.localStorage);
+    this.GAMER_CLASSES = [Bowman, Swordsman, Magician];
+    this.COMPUTER_CLASSES = [Vampire, Undead, Daemon];
+    this.ai = new Ai(this.GAMER_CLASSES, this.gameState, this.gamePlay.boardSize, this.gamePlay);
+    this.rules = {
+      1: {
+        newPlayers: 2,
+        maxNewPlersLevel: 1,
+        maxComputerPersLevel: 1,
+        theme: 'prairie',
+      },
+      2: {
+        newPlayers: 1,
+        maxNewPlersLevel: 1,
+        maxComputerPersLevel: 2,
+        theme: 'desert',
+      },
+      3: {
+        newPlayers: 2,
+        maxNewPlersLevel: 2,
+        maxComputerPersLevel: 3,
+        theme: 'arctic',
+      },
+      4: {
+        newPlayers: 2,
+        maxNewPlersLevel: 3,
+        maxComputerPersLevel: 4,
+        theme: 'mountain',
+      },
+    };
   }
 
   init() {
+  
     this.gamePlay.drawUi('prairie');
 
+    
     this.gamePlay.addCellEnterListener(this.onCellEnter.bind(this));
     this.gamePlay.addCellLeaveListener(this.onCellLeave.bind(this));
-    this.gamePlay.addNewGameListener(this.onNewGameClick.bind(this));
     this.gamePlay.addCellClickListener(this.onCellClick.bind(this));
 
-    this.onNewGameClick();
+    this.gamePlay.addNewGameListener(this.onNewGameClick.bind(this));
+    this.gamePlay.addSaveGameListener(this.onSaveClick.bind(this));
+    this.gamePlay.addLoadGameListener(this.onLoadClick.bind(this));
 
+    this.ai.nextTurn = this.nextTurn.bind(this);
+  }
+
+  onSaveClick() {
+    this.gameStateService.save(this.gameState);
+  }
+
+  onLoadClick() {
     
-    // TODO: add event listeners to gamePlay events
-    // TODO: load saved stated from stateService
+    this.gameState.setState(this.gameStateService.load());
+    this.gamePlay.drawUi(this.rules[this.gameState.level].theme);
+    this.gamePlay.redrawPositions(this.gameState.field);
   }
 
   onCellClick(index) {
-    
-    
+    if (!this.gameState.gamePlay) {
+      return;
+    }
+
     if (this.gameState.activePlayer === 'computer') {
       return false;
     }
@@ -60,7 +104,7 @@ export default class GameController {
     } else if (this.gameState.avlAction === 'attack') {
       this.actionAttack(index);
     } else if (this.gameState.avlAction === 'not allowed to choose') {
-      GamePlay.showError('Вражеских персонажей нельзя выбирать!');
+      GamePlay.showError('Выбрать можно только своих');
     } else if (this.gameState.avlAction === 'to far to attack') {
       GamePlay.showError('Слишком далеко для атаки');
     } else if (this.gameState.avlAction === 'to far to move') {
@@ -68,14 +112,17 @@ export default class GameController {
     }
   }
 
-
   onCellEnter(index) {
-    
-    const isPersOnCell = this.gameState.board.find((item) => item.position === index);
+    if (!this.gameState.gamePlay) {
+      return;
+    }
 
-    if (isPersOnCell) {
-      this.createAndShowTooltip(index, isPersOnCell);
-      if (isGamer(isPersOnCell, this.heroesOfUser)) {
+    const personOnCell = this.gameState.field.find((item) => item.position === index);
+
+    if (personOnCell) {
+      this.createAndShowTooltip(index, personOnCell);
+
+      if (isGamer(personOnCell, this.GAMER_CLASSES)) {
         this.setAvaliableAction('select');
       } else {
         this.setAvaliableAction('not allowed to choose');
@@ -90,7 +137,7 @@ export default class GameController {
       }
       return;
     }
- 
+
     if (this.gameState.selected) {
       if (this.isActionInRange('moveRange', index)) {
         this.setAvaliableAction('move', index);
@@ -128,6 +175,9 @@ export default class GameController {
   }
 
   onCellLeave(index) {
+    if (!this.gameState.gamePlay) {
+      return;
+    }
 
     this.gamePlay.setCursor('auto');
     this.gameState.avlAction = null;
@@ -135,12 +185,9 @@ export default class GameController {
     if (this.gameState.selected) {
       this.gamePlay.selectCell(this.gameState.selected.position);
     }
-
   }
 
-  onNewGameClick() {
-
-    this.gameState.board = [];
+  levelUp() {
     this.gameState.activePlayer = 'gamer';
     if (this.gameState.selected) {
       this.gamePlay.deselectCell(this.gameState.selected.position);
@@ -148,54 +195,68 @@ export default class GameController {
     this.gameState.selected = null;
     this.gameState.avlAction = null;
 
+    this.gameState.level += 1;
 
-    const userTeam = generateTeam([Bowman, Swordsman], 1, 2);
-    const computerTeam = generateTeam([Daemon, Undead, Vampire], 1, 2);
-    const allPositionsUserOne = [0, 8, 16, 24, 32, 40, 48, 56];
-    const allPositionsUserTwo = [1, 9, 17, 25, 33, 41, 49, 57];
-    const allPositionsComputerOne = [6, 14, 22, 30, 38, 46, 54, 62];
-    const allPositionsComputerTwo = [7, 15, 23, 31, 39, 47, 55, 63];
-    const userTeamPosition = [new PositionedCharacter(userTeam[0], allPositionsUserOne[Math.floor(Math.random() * 8)]), new PositionedCharacter(userTeam[1], allPositionsUserTwo[Math.floor(Math.random() * 8)])];
-    this.gameState.board.push(userTeamPosition[0], userTeamPosition[1]);
-    const computerTeamPosition = [new PositionedCharacter(computerTeam[0], allPositionsComputerOne[Math.floor(Math.random() * 8)]), new PositionedCharacter(computerTeam[1], allPositionsComputerTwo[Math.floor(Math.random() * 8)])];
-    this.gameState.board.push(computerTeamPosition[0], computerTeamPosition[1]);
+    const gamerPositions = randomizeArray(getStartPosition(this.gamePlay.boardSize, 'gamer'));
+    this.gameState.field.forEach((pers) => {
+      pers.character.level += 1;
+      pers.character.health = 100;
+      pers.position = gamerPositions.pop();
+    });
 
-    
-    this.gamePlay.redrawPositions(this.gameState.board);
+    const rules = this.rules[this.gameState.level];
+    for (let i = 0; i < rules.newPlayers; i += 1) {
+      const gamerPers = characterGenerator(this.GAMER_CLASSES, rules.maxNewPlersLevel);
+      this.gameState.field.push(new PositionedCharacter(gamerPers, gamerPositions.pop()));
+    }
 
+    const numOfComputers = this.gameState.field.length;
+    const computerPositions = randomizeArray(getStartPosition(this.gamePlay.boardSize, 'computer'));
+    for (let i = 0; i < numOfComputers; i += 1) {
+      const gamerPers = characterGenerator(this.COMPUTER_CLASSES, rules.maxComputerPersLevel);
+      this.gameState.field.push(new PositionedCharacter(gamerPers, computerPositions.pop()));
+    }
+
+    this.gamePlay.drawUi(rules.theme);
+    this.gamePlay.redrawPositions(this.gameState.field);
+  }
+
+  onNewGameClick() {
+    this.gameState.field = [];
+    this.gameState.level = 0;
+    this.gameState.gamePlay = true;
+    this.levelUp();
   }
 
   actionMove(index) {
     this.deselectBoth(index);
     this.gameState.selected.position = index;
-    this.gamePlay.redrawPositions(this.gameState.board);
-    this.cleanAfterTurn();
-
-    this.ai.makeTurn();
+    this.gamePlay.redrawPositions(this.gameState.field);
+    this.cleanAfterPlayersTurn();
+    this.nextTurn();
   }
 
   actionAttack(index) {
-    const findedPers = this.gameState.board.find((item) => item.position === index);
+    const findedPers = this.gameState.field.find((item) => item.position === index);
     const target = findedPers.character;
     const damage = countDamage(this.gameState.selected, findedPers);
 
     this.gamePlay.showDamage(index, damage).finally(() => {
       target.health -= damage;
       if (target.health <= 0) {
-        const indexForDelete = this.gameState.board.indexOf(findedPers);
-        this.gameState.board.splice(indexForDelete, 1);
+        const indexForDelete = this.gameState.field.indexOf(findedPers);
+        this.gameState.field.splice(indexForDelete, 1);
       }
 
-      this.gamePlay.redrawPositions(this.gameState.board);
+      this.gamePlay.redrawPositions(this.gameState.field);
       this.deselectBoth(index);
-      this.cleanAfterTurn();
-
-      this.ai.makeTurn();
+      this.cleanAfterPlayersTurn();
+      this.nextTurn();
     });
   }
 
   actionSelect(index) {
-    const characterOnCell = this.gameState.board.find((item) => item.position === index);
+    const characterOnCell = this.gameState.field.find((item) => item.position === index);
     const selectedPosition = this.gameState.selected ? this.gameState.selected.position : null;
 
     if (selectedPosition === index) {
@@ -216,7 +277,7 @@ export default class GameController {
     this.gamePlay.deselectCell(index);
   }
 
-  cleanAfterTurn() {
+  cleanAfterPlayersTurn() {
     this.gameState.selected = null;
     this.gameState.avlAction = null;
   }
@@ -228,4 +289,63 @@ export default class GameController {
   }
 
 
+
+  setHealthToOne(forGamer) {
+    const who = forGamer ? 'GAMER_CLASSES' : 'COMPUTER_CLASSES';
+    this.gameState.field.forEach((pers) => {
+      if (isGamer(pers, this[who])) {
+        pers.character.health = 1;
+      }
+    });
+    this.gamePlay.redrawPositions(this.gameState.field);
+  }
+
+  checkWinner() {
+    let numOfGamerPerses = 0;
+    let numOfCcomputerPerses = 0;
+
+    this.gameState.field.forEach((pers) => {
+      if (isGamer(pers, this.GAMER_CLASSES)) {
+        numOfGamerPerses += 1;
+      } else {
+        numOfCcomputerPerses += 1;
+      }
+    });
+
+    if (numOfGamerPerses === 0) {
+      setTimeout(alert('Вы проиграли'), 0);
+      return true;
+    }
+    if (numOfCcomputerPerses === 0) {
+      if (this.gameState.level < 4) {
+        this.levelUp();
+        setTimeout(alert('Победа на уровне! Продолжаем'), 0);
+      } else {
+        this.gamePlay.setCursor('auto');
+        this.gameState.gamePlay = false;
+        this.saveScore();
+        setTimeout(alert('Конец игры. Победа'), 0);
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  saveScore() {
+    const score = this.gameState.field.reduce((sum, item) => sum + item.character.health, 0);
+    this.gameState.maxScore = (score > this.gameState.maxScore) ? score : this.gameState.maxScore;
+    console.log(this.gameState.maxScore);
+  }
+
+  nextTurn() {
+    if (this.checkWinner()) {
+      return;
+    }
+
+    this.gameState.changeActivePlayer();
+    if (this.gameState.activePlayer === 'computer') {
+      this.ai.makeTurn();
+    }
+  }
 }
