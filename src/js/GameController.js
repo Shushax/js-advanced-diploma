@@ -75,6 +75,7 @@ export default class GameController {
     this.gamePlay.addLoadGameListener(this.onLoadClick.bind(this));
 
     this.ai.nextTurn = this.nextTurn.bind(this);
+    this.onNewGameClick();
   }
 
   onSaveClick() {
